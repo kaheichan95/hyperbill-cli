@@ -36,7 +36,7 @@ def test_rejects_wrong_state_and_origin_then_accepts_valid(login):
                          headers={"Origin": "https://evil.example"}).status_code == 403
     assert requests.get(url).status_code == 404
     ok = requests.post(url, data={"state": state, "refresh_token": "good"},
-                       headers={"Origin": "https://hyperbill.co"})
+                       headers={"Origin": "null"})
     assert ok.status_code == 200
     thread.join(5)
     assert result["token"] == "good"

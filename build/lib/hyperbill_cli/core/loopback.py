@@ -11,9 +11,8 @@ import hashlib
 import hmac
 import secrets
 import threading
-import time
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode
 
 import click
@@ -45,6 +44,8 @@ class _Result:
 
 def _make_handler(state: str, expected_origin: str, result: _Result) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
+        timeout = 10  # browsers open idle speculative connections; don't let them linger
+
         def do_POST(self) -> None:  # noqa: N802 - http.server API
             if self.path != "/callback" or result.done.is_set():
                 self._reply(404, b"Not found")
@@ -92,8 +93,8 @@ def browser_login(env: Environment, open_browser: bool = True) -> str:
     """Run the loopback flow and return the refresh token."""
     state = secrets.token_urlsafe(32)
     result = _Result()
-    server = HTTPServer(("127.0.0.1", 0), _make_handler(state, env.origin, result))
-    server.timeout = 1
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(state, env.origin, result))
+    server.daemon_threads = True
     port = server.server_address[1]
 
     url = f"{env.base_url}/en/cli/login?{urlencode({'port': port, 'state': state})}"
@@ -102,11 +103,12 @@ def browser_login(env: Environment, open_browser: bool = True) -> str:
     if open_browser:
         webbrowser.open(url)
 
-    deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
+    serving = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.5}, daemon=True)
+    serving.start()
     try:
-        while not result.done.is_set() and time.monotonic() < deadline:
-            server.handle_request()
+        result.done.wait(LOGIN_TIMEOUT_SECONDS)
     finally:
+        server.shutdown()
         server.server_close()
 
     if not result.refresh_token:
