@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core import credentials, identity, loopback
+from ..core import credentials, identity, loopback, paste_login
 from ..core.context import AppContext
 
 
@@ -19,8 +19,11 @@ def _store(app: AppContext, tokens: identity.TokenSet, method: str) -> dict[str,
     return {"signedIn": True, "env": app.env.name, "uid": tokens.uid, "email": tokens.email, "method": method}
 
 
-def login_with_browser(app: AppContext, open_browser: bool) -> dict[str, Any]:
-    refresh_token = loopback.browser_login(app.env, open_browser=open_browser)
+def login_with_browser(app: AppContext, open_browser: bool, paste: bool) -> dict[str, Any]:
+    if paste:
+        refresh_token = paste_login.paste_login(app.env)
+    else:
+        refresh_token = loopback.browser_login(app.env, open_browser=open_browser)
     tokens = identity.refresh(app.env.firebase_api_key, refresh_token)
     return _store(app, tokens, "browser")
 

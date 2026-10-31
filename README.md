@@ -23,6 +23,7 @@ and the website's API checks apply unchanged.
 | Method | Command | Use when |
 | --- | --- | --- |
 | Browser (recommended) | `hyperbill auth login` | Any account, including Google sign-in |
+| Browser, remote machine | `hyperbill auth login --paste` (automatic over SSH) | CLI runs on a server; sign in from your laptop's browser and paste the code back |
 | Email + password | `hyperbill auth login --email you@example.com` | Headless machine; password is prompted, never taken from args or env |
 | Injected session | `HYPERBILL_REFRESH_TOKEN=...` | Sandboxed agent runtimes that can't read `~/.config` |
 
@@ -39,6 +40,12 @@ How the browser login works (RFC 8252 loopback flow):
    the token can't leave your machine and never appears in a URL. The
    listener checks `state` (constant-time) and the `Origin` header, accepts a
    single callback, and shuts down after 5 minutes.
+
+Over SSH (or with `--paste`) the browser can't reach the CLI's loopback port,
+so the CLI opens `…/cli/login?mode=paste&state=…` instead. After **Authorize**,
+the page shows a code bundling `state` with the refresh token; paste it at the
+hidden prompt and the CLI rejects any code whose `state` doesn't match. Treat
+that code like a password.
 
 ### Storage and lifetime
 
